@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Agency Ops Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --border: rgba(255,255,255,0.07);
+    --border-bright: rgba(255,255,255,0.14);
+    --accent: #7c6aff;
+    --accent2: #ff6b6b;
+    --accent3: #3ecf8e;
+    --accent4: #f5a623;
+    --text: #e8e6f0;
+    --muted: #6b6880;
+    --muted2: #9d9ab0;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(124,106,255,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(62,207,142,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Shell ── */
+  .shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: 56px 1fr;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.8); }
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(62,207,142,0.3);
+    color: var(--accent3);
+    font-size: 11px;
+  }
+
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent3);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    background: var(--surface);
+  }
+
+  .nav-section {
+    padding: 0 16px;
+    margin-bottom: 6px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 4px;
+    margin-top: 20px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted2);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+
+  .nav-item.active {
+    background: rgba(124,106,255,0.12);
+    color: var(--accent);
+    border-color: rgba(124,106,255,0.2);
+  }
+
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+
+  .nav-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-family: var(--mono);
+    background: rgba(124,106,255,0.2);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 10px;
+  }
+
+  /* ── Main ── */
+  .main {
+    padding: 32px 36px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .page { display: none; flex-direction: column; gap: 28px; }
+  .page.active { display: flex; }
+
+  /* ── Page header ── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
+  .page-sub { font-size: 13px; color: var(--muted2); margin-top: 4px; font-family: var(--mono); }
+
+  .btn {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #6b59ee; transform: translateY(-1px); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted2);
+    border: 1px solid var(--border-bright);
+  }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+
+  /* ── Metric cards ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .metric-card.purple::before { background: var(--accent); }
+  .metric-card.green::before  { background: var(--accent3); }
+  .metric-card.red::before    { background: var(--accent2); }
+  .metric-card.amber::before  { background: var(--accent4); }
+
+  .metric-card:hover { border-color: var(--border-bright); }
+
+  .metric-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .metric-value {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .metric-card.purple .metric-value { color: var(--accent); }
+  .metric-card.green .metric-value  { color: var(--accent3); }
+  .metric-card.red .metric-value    { color: var(--accent2); }
+  .metric-card.amber .metric-value  { color: var(--accent4); }
+
+  .metric-delta {
+    font-size: 11px;
+    font-family: var(--mono);
+    margin-top: 6px;
+    color: var(--muted2);
+  }
+
+  /* ── Section heading ── */
+  .section-heading {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted2);
+    margin-bottom: -12px;
+  }
+
+  /* ── Client table ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-title { font-size: 14px; font-weight: 700; }
+
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text);
+    width: 220px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: rgba(124,106,255,0.5); }
+  .search-input::placeholder { color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th {
+    padding: 10px 20px;
+    text-align: left;
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+    font-weight: 500;
+  }
+
+  td {
+    padding: 14px 20px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .client-name { font-weight: 700; color: var(--text); }
+  .client-offer { font-size: 11px; color: var(--muted2); font-family: var(--mono); margin-top: 2px; }
+
+  /* ── Status badge ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  .badge-dot { width: 4px; height: 4px; border-radius: 50%; }
+
+  .badge.complete  { background: rgba(62,207,142,0.12); color: var(--accent3); border: 1px solid rgba(62,207,142,0.25); }
+  .badge.complete .badge-dot  { background: var(--accent3); }
+  .badge.running   { background: rgba(124,106,255,0.12); color: var(--accent);  border: 1px solid rgba(124,106,255,0.25); }
+  .badge.running .badge-dot   { background: var(--accent); animation: pulse 1s infinite; }
+  .badge.pending   { background: rgba(245,166,35,0.12);  color: var(--accent4); border: 1px solid rgba(245,166,35,0.25); }
+  .badge.pending .badge-dot   { background: var(--accent4); }
+  .badge.error     { background: rgba(255,107,107,0.12); color: var(--accent2); border: 1px solid rgba(255,107,107,0.25); }
+  .badge.error .badge-dot     { background: var(--accent2); }
+
+  /* ── Agent progress bars ── */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .agent-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.2s;
+  }
+
+  .agent-card:hover { border-color: var(--border-bright); }
+
+  .agent-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .agent-name { font-size: 13px; font-weight: 700; }
+  .agent-role { font-size: 11px; font-family: var(--mono); color: var(--muted2); margin-top: 2px; }
+  .agent-runs { font-size: 11px; font-family: var(--mono); color: var(--muted); }
+
+  .bar-wrap {
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .bar-fill.purple { background: var(--accent); }
+  .bar-fill.green  { background: var(--accent3); }
+  .bar-fill.amber  { background: var(--accent4); }
+  .bar-fill.red    { background: var(--accent2); }
+
+  .agent-stats {
+    display: flex;
+    gap: 16px;
+  }
+
+  .agent-stat { font-size: 11px; font-family: var(--mono); }
+  .agent-stat span { color: var(--muted); }
+
+  /* ── Pipeline kanban ── */
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+  }
+
+  .kanban-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 220px;
+  }
+
+  .kanban-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .kanban-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted2); }
+  .kanban-count {
+    font-size: 10px;
+    font-family: var(--mono);
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 8px;
+    color: var(--muted);
+  }
+
+  .kanban-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .kanban-card:hover {
+    border-color: rgba(124,106,255,0.3);
+    transform: translateY(-1px);
+  }
+
+  .kc-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .kc-offer { font-size: 10px; font-family: var(--mono); color: var(--muted); line-height: 1.4; }
+  .kc-budget {
+    margin-top: 8px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--accent3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* ── Output tracker ── */
+  .output-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .output-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 220px 1fr auto;
+    align-items: center;
+    gap: 20px;
+    transition: border-color 0.15s;
+  }
+
+  .output-row:hover { border-color: var(--border-bright); }
+
+  .or-client { font-size: 13px; font-weight: 700; }
+  .or-date   { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-top: 2px; }
+
+  .agent-checklist {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .agent-chip {
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--muted2);
+    background: var(--surface2);
+  }
+
+  .agent-chip.done {
+    background: rgba(62,207,142,0.1);
+    border-color: rgba(62,207,142,0.25);
+    color: var(--accent3);
+  }
+
+  .agent-chip.active {
+    background: rgba(124,106,255,0.12);
+    border-color: rgba(124,106,255,0.3);
+    color: var(--accent);
+    animation: chipPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes chipPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* ── GHL payload status ── */
+  .ghl-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .ghl-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ghl-top { display: flex; align-items: center; justify-content: space-between; }
+  .ghl-name { font-size: 13px; font-weight: 700; }
+  .ghl-section { font-size: 11px; font-family: var(--mono); color: var(--muted2); }
+
+  .ghl-fields { display: flex; flex-direction: column; gap: 6px; }
+
+  .ghl-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+
+  .ghl-field-key { color: var(--muted); }
+  .ghl-field-val { color: var(--text); }
+  .ghl-field-val.mock { color: var(--accent4); }
+
+  /* ── Activity feed ── */
+  .activity-feed { display: flex; flex-direction: column; }
+
+  .activity-item {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+
+  .activity-item:last-child { border-bottom: none; }
+
+  .activity-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .ai-purple { background: rgba(124,106,255,0.15); }
+  .ai-green  { background: rgba(62,207,142,0.15); }
+  .ai-amber  { background: rgba(245,166,35,0.15); }
+  .ai-red    { background: rgba(255,107,107,0.15); }
+
+  .activity-body { flex: 1; }
+  .activity-text { font-size: 12px; line-height: 1.5; }
+  .activity-text strong { color: var(--text); font-weight: 700; }
+  .activity-time { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-top: 2px; }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+  /* ── Fade-in animation ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .page.active > * {
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .page.active > *:nth-child(1) { animation-delay: 0.00s; }
+  .page.active > *:nth-child(2) { animation-delay: 0.05s; }
+  .page.active > *:nth-child(3) { animation-delay: 0.10s; }
+  .page.active > *:nth-child(4) { animation-delay: 0.15s; }
+  .page.active > *:nth-child(5) { animation-delay: 0.20s; }
+
+  /* ── Time display ── */
+  #clock { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Top bar ── -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      AGENCY OS
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        System live
+      </div>
+      <span id="clock"></span>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" onclick="navigate('overview', this)">
+        <span class="nav-icon">⬡</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="navigate('clients', this)">
+        <span class="nav-icon">◈</span> Clients
+        <span class="nav-badge">6</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">AI System</div>
+      <div class="nav-item" onclick="navigate('agents', this)">
+        <span class="nav-icon">◎</span> Agents
+      </div>
+      <div class="nav-item" onclick="navigate('outputs', this)">
+        <span class="nav-icon">◻</span> Outputs
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Delivery</div>
+      <div class="nav-item" onclick="navigate('pipeline', this)">
+        <span class="nav-icon">▷</span> Pipeline
+      </div>
+      <div class="nav-item" onclick="navigate('ghl', this)">
+        <span class="nav-icon">⬡</span> GHL Status
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- ════════════════════════════════════════════
+         PAGE: Overview / Dashboard
+    ════════════════════════════════════════════ -->
+    <div class="page active" id="page-overview">
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">Agency Dashboard</div>
+          <div class="page-sub">Central ops view — all clients, agents & delivery status</div>
+        </div>
+        <button class="btn btn-primary" onclick="navigate('clients', document.querySelector('[onclick*=clients]'))">+ New Client</button>
+      </div>
+
+      <!-- Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card purple">
+          <div class="metric-label">Total Clients</div>
+          <div class="metric-value">6</div>
+          <div class="metric-delta">↑ 2 this week</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">Runs Complete</div>
+          <div class="metric-value">18</div>
+          <div class="metric-delta">42 agent runs total</div>
+        </div>
+        <div class="metric-card amber">
+          <div class="metric-label">In Progress</div>
+          <div class="metric-value">1</div>
+          <div class="metric-delta">FitLife Coaching</div>
+        </div>
+        <div class="metric-card red">
+          <div class="metric-label">Avg Run Time</div>
+          <div class="metric-value">4m</div>
+          <div class="metric-delta">7 agents / run</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <!-- Recent runs -->
+          <div class="section-heading" style="margin-bottom:14px">Recent Runs</div>
+          <div class="table-wrap">
+            <table id="recent-runs-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Agents</th>
+                  <th>Status</th>
+                  <th>Run time</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="client-name">FitLife Coaching</div>
+                    <div class="client-offer">12-week programme · £997</div>
+                  </td>
+                  <td><span class="badge running"><span class="badge-dot"></span>4 / 7</span></td>
+                  <td><span class="badge running"><span class="badge-dot"></span>Running</span></td>
+                  <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">2m 14s</td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">Today</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="client-name">Apex Legal</div>
+                    <div class="client-offer">Conveyancing leads · £2,500/mo</div>
+                  </td>
+                  <td><span class="badge complete"><span class="badge-dot"></span>7 / 7</span></td>
+                  <td><span class="badge complete"><span class="badge-dot"></span>Complete</span></td>
+                  <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">3m 52s</td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">Yesterday</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="client-name">SolarNow UK</div>
+                    <div class="client-offer">Solar installations · £4,999</div>
+                  </td>
+                  <td><span class="badge complete"><span class="badge-dot"></span>7 / 7</span></td>
+                  <td><span class="badge complete"><span class="badge-dot"></span>Complete</span></td>
+                  <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">5m 01s</td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">2 days ago</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="client-name">MindSet Academy</div>
+                    <div class="client-offer">Online course · £497</div>
+                  </td>
+                  <td><span class="badge error"><span class="badge-dot"></span>3 / 7</span></td>
+                  <td><span class="badge error"><span class="badge-dot"></span>Error</span></td>
+                  <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">1m 30s</td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">3 days ago</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Activity feed -->
+        <div>
+          <div class="section-heading" style="margin-bottom:14px">Live Activity</div>
+          <div class="table-wrap" style="padding: 4px 0;">
+            <div class="activity-feed" id="activity-feed" style="padding: 0 16px;">
+              <div class="activity-item">
+                <div class="activity-icon ai-purple">◎</div>
+                <div class="activity-body">
+                  <div class="activity-text"><strong>Funnel Builder</strong> completed spec for FitLife Coaching</div>
+                  <div class="activity-time">Just now</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ai-green">✓</div>
+                <div class="activity-body">
+                  <div class="activity-text"><strong>Apex Legal</strong> — all 7 outputs saved to DB</div>
+                  <div class="activity-time">14 min ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ai-purple">◎</div>
+                <div class="activity-body">
+                  <div class="activity-text"><strong>Media Buyer</strong> finished Meta campaign map</div>
+                  <div class="activity-time">18 min ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ai-amber">⬡</div>
+                <div class="activity-body">
+                  <div class="activity-text">GHL payload generated for <strong>Apex Legal</strong></div>
+                  <div class="activity-time">22 min ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ai-red">!</div>
+                <div class="activity-body">
+                  <div class="activity-text"><strong>MindSet Academy</strong> run failed at Automation Builder — timeout</div>
+                  <div class="activity-time">3 days ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ai-green">✓</div>
+                <div class="activity-body">
+                  <div class="activity-text"><strong>SolarNow UK</strong> — project plan exported</div>
+                  <div class="activity-time">2 days ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════
+         PAGE: Clients
+    ════════════════════════════════════════════ -->
+    <div class="page" id="page-clients">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Clients</div>
+          <div class="page-sub">All client briefs and run history</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <input class="search-input" placeholder="Search clients…" oninput="filterClients(this.value)"/>
+          <button class="btn btn-primary">+ New Client</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="client-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Audience</th>
+              <th>Budget</th>
+              <th>Goals</th>
+              <th>Status</th>
+              <th>Last Run</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="client-name">FitLife Coaching</div><div class="client-offer">12-week programme · £997</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Men 35–55, weight loss</td>
+              <td style="font-family:var(--mono);font-size:12px">£1,500/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">30 leads/mo · £15k MRR</td>
+              <td><span class="badge running"><span class="badge-dot"></span>Running</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">Today</td>
+            </tr>
+            <tr>
+              <td><div class="client-name">Apex Legal</div><div class="client-offer">Conveyancing leads · £2,500/mo</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Home buyers 30–55</td>
+              <td style="font-family:var(--mono);font-size:12px">£3,000/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">50 leads/mo · £25k MRR</td>
+              <td><span class="badge complete"><span class="badge-dot"></span>Complete</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">Yesterday</td>
+            </tr>
+            <tr>
+              <td><div class="client-name">SolarNow UK</div><div class="client-offer">Solar installations · £4,999</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Homeowners 40–65</td>
+              <td style="font-family:var(--mono);font-size:12px">£5,000/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">20 installs/mo</td>
+              <td><span class="badge complete"><span class="badge-dot"></span>Complete</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">2 days ago</td>
+            </tr>
+            <tr>
+              <td><div class="client-name">MindSet Academy</div><div class="client-offer">Online course · £497</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Entrepreneurs 25–45</td>
+              <td style="font-family:var(--mono);font-size:12px">£2,000/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">100 sales/mo</td>
+              <td><span class="badge error"><span class="badge-dot"></span>Error</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">3 days ago</td>
+            </tr>
+            <tr>
+              <td><div class="client-name">PureKeto Foods</div><div class="client-offer">Meal plan subscription · £79/mo</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Women 30–50, keto diet</td>
+              <td style="font-family:var(--mono);font-size:12px">£1,200/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">200 subscribers/mo</td>
+              <td><span class="badge complete"><span class="badge-dot"></span>Complete</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">4 days ago</td>
+            </tr>
+            <tr>
+              <td><div class="client-name">Clarity Therapy</div><div class="client-offer">Online therapy · £120/session</div></td>
+              <td style="font-size:12px;color:var(--muted2)">Adults 25–50, anxiety</td>
+              <td style="font-family:var(--mono);font-size:12px">£800/mo</td>
+              <td style="font-size:12px;color:var(--muted2)">40 bookings/mo</td>
+              <td><span class="badge pending"><span class="badge-dot"></span>Pending</span></td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">Not run</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════
+         PAGE: Agents
+    ════════════════════════════════════════════ -->
+    <div class="page" id="page-agents">
+      <div class="page-header">
+        <div>
+          <div class="page-title">AI Agents</div>
+          <div class="page-sub">Performance and run stats per agent role</div>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card purple">
+          <div class="metric-label">Total Agent Runs</div>
+          <div class="metric-value">42</div>
+          <div class="metric-delta">Across 6 clients</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">Success Rate</div>
+          <div class="metric-value">95%</div>
+          <div class="metric-delta">2 failures total</div>
+        </div>
+        <div class="metric-card amber">
+          <div class="metric-label">Avg per Agent</div>
+          <div class="metric-value">38s</div>
+          <div class="metric-delta">GPT-4o response time</div>
+        </div>
+        <div class="metric-card red">
+          <div class="metric-label">Tokens Used</div>
+          <div class="metric-value">1.2M</div>
+          <div class="metric-delta">Est. $18.40 spend</div>
+        </div>
+      </div>
+
+      <div class="section-heading">Agent Performance</div>
+
+      <div class="agent-grid">
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Strategist</div>
+              <div class="agent-role">go-to-market strategy · positioning · KPIs</div>
+            </div>
+            <div class="agent-runs">6 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill purple" style="width:100%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>6/6</div>
+            <div class="agent-stat"><span>Avg time </span>42s</div>
+            <div class="agent-stat"><span>Tokens </span>~210k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Copywriter</div>
+              <div class="agent-role">ads · emails · landing pages · sales pages</div>
+            </div>
+            <div class="agent-runs">6 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill green" style="width:100%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>6/6</div>
+            <div class="agent-stat"><span>Avg time </span>51s</div>
+            <div class="agent-stat"><span>Tokens </span>~280k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Media Buyer</div>
+              <div class="agent-role">Meta campaign structure · audiences · budgets</div>
+            </div>
+            <div class="agent-runs">6 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill amber" style="width:100%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>6/6</div>
+            <div class="agent-stat"><span>Avg time </span>34s</div>
+            <div class="agent-stat"><span>Tokens </span>~175k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Funnel Builder</div>
+              <div class="agent-role">GHL funnel spec · pages · sections · flow</div>
+            </div>
+            <div class="agent-runs">6 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill purple" style="width:100%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>6/6</div>
+            <div class="agent-stat"><span>Avg time </span>45s</div>
+            <div class="agent-stat"><span>Tokens </span>~195k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Automation Builder</div>
+              <div class="agent-role">GHL workflows · nurture · pipeline rules</div>
+            </div>
+            <div class="agent-runs">5 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill red" style="width:83%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>5/6</div>
+            <div class="agent-stat"><span>Avg time </span>38s</div>
+            <div class="agent-stat"><span>Tokens </span>~160k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Creative Director</div>
+              <div class="agent-role">ad briefs · visuals · Midjourney prompts</div>
+            </div>
+            <div class="agent-runs">5 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill amber" style="width:83%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>5/6</div>
+            <div class="agent-stat"><span>Avg time </span>29s</div>
+            <div class="agent-stat"><span>Tokens </span>~120k</div>
+          </div>
+        </div>
+
+        <div class="agent-card">
+          <div class="agent-top">
+            <div>
+              <div class="agent-name">Project Manager</div>
+              <div class="agent-role">task plan · owners · due days · dependencies</div>
+            </div>
+            <div class="agent-runs">5 runs</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill green" style="width:83%"></div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span>Success </span>5/6</div>
+            <div class="agent-stat"><span>Avg time </span>26s</div>
+            <div class="agent-stat"><span>Tokens </span>~95k</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════
+         PAGE: Outputs
+    ════════════════════════════════════════════ -->
+    <div class="page" id="page-outputs">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Output Tracker</div>
+          <div class="page-sub">Per-client agent output completion status</div>
+        </div>
+      </div>
+
+      <div class="output-list" id="output-list">
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">FitLife Coaching</div>
+            <div class="or-date">Run started today · in progress</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip done">Strategy</span>
+            <span class="agent-chip done">Copy</span>
+            <span class="agent-chip done">Media Plan</span>
+            <span class="agent-chip active">Funnel</span>
+            <span class="agent-chip">Automations</span>
+            <span class="agent-chip">Creatives</span>
+            <span class="agent-chip">PM Plan</span>
+          </div>
+          <span class="badge running"><span class="badge-dot"></span>4 / 7</span>
+        </div>
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">Apex Legal</div>
+            <div class="or-date">Completed yesterday · 3m 52s</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip done">Strategy</span>
+            <span class="agent-chip done">Copy</span>
+            <span class="agent-chip done">Media Plan</span>
+            <span class="agent-chip done">Funnel</span>
+            <span class="agent-chip done">Automations</span>
+            <span class="agent-chip done">Creatives</span>
+            <span class="agent-chip done">PM Plan</span>
+          </div>
+          <span class="badge complete"><span class="badge-dot"></span>7 / 7</span>
+        </div>
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">SolarNow UK</div>
+            <div class="or-date">Completed 2 days ago · 5m 01s</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip done">Strategy</span>
+            <span class="agent-chip done">Copy</span>
+            <span class="agent-chip done">Media Plan</span>
+            <span class="agent-chip done">Funnel</span>
+            <span class="agent-chip done">Automations</span>
+            <span class="agent-chip done">Creatives</span>
+            <span class="agent-chip done">PM Plan</span>
+          </div>
+          <span class="badge complete"><span class="badge-dot"></span>7 / 7</span>
+        </div>
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">MindSet Academy</div>
+            <div class="or-date">Failed 3 days ago · stopped at Automation Builder</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip done">Strategy</span>
+            <span class="agent-chip done">Copy</span>
+            <span class="agent-chip done">Media Plan</span>
+            <span class="agent-chip">Funnel</span>
+            <span class="agent-chip">Automations</span>
+            <span class="agent-chip">Creatives</span>
+            <span class="agent-chip">PM Plan</span>
+          </div>
+          <span class="badge error"><span class="badge-dot"></span>3 / 7</span>
+        </div>
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">PureKeto Foods</div>
+            <div class="or-date">Completed 4 days ago · 4m 18s</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip done">Strategy</span>
+            <span class="agent-chip done">Copy</span>
+            <span class="agent-chip done">Media Plan</span>
+            <span class="agent-chip done">Funnel</span>
+            <span class="agent-chip done">Automations</span>
+            <span class="agent-chip done">Creatives</span>
+            <span class="agent-chip done">PM Plan</span>
+          </div>
+          <span class="badge complete"><span class="badge-dot"></span>7 / 7</span>
+        </div>
+
+        <div class="output-row">
+          <div>
+            <div class="or-client">Clarity Therapy</div>
+            <div class="or-date">Not yet run · brief submitted</div>
+          </div>
+          <div class="agent-checklist">
+            <span class="agent-chip">Strategy</span>
+            <span class="agent-chip">Copy</span>
+            <span class="agent-chip">Media Plan</span>
+            <span class="agent-chip">Funnel</span>
+            <span class="agent-chip">Automations</span>
+            <span class="agent-chip">Creatives</span>
+            <span class="agent-chip">PM Plan</span>
+          </div>
+          <span class="badge pending"><span class="badge-dot"></span>0 / 7</span>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════
+         PAGE: Pipeline (Kanban)
+    ════════════════════════════════════════════ -->
+    <div class="page" id="page-pipeline">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Delivery Pipeline</div>
+          <div class="page-sub">Client progression through fulfilment stages</div>
+        </div>
+      </div>
+
+      <div class="kanban" id="kanban-board">
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">Brief Submitted</div>
+            <div class="kanban-count">1</div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Clarity Therapy</div>
+            <div class="kc-offer">Online therapy · £120/session · Adults 25–50</div>
+            <div class="kc-budget"><span>£800/mo budget</span><span class="badge pending" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>Pending</span></div>
+          </div>
+        </div>
+
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">AI Running</div>
+            <div class="kanban-count">1</div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">FitLife Coaching</div>
+            <div class="kc-offer">12-week programme · Men 35–55</div>
+            <div class="kc-budget"><span>£1,500/mo budget</span><span class="badge running" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>4/7 agents</span></div>
+          </div>
+        </div>
+
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">Outputs Ready</div>
+            <div class="kanban-count">2</div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Apex Legal</div>
+            <div class="kc-offer">Conveyancing leads · Home buyers 30–55</div>
+            <div class="kc-budget"><span>£3,000/mo budget</span><span class="badge complete" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>7/7</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">PureKeto Foods</div>
+            <div class="kc-offer">Meal subscription · Women 30–50</div>
+            <div class="kc-budget"><span>£1,200/mo budget</span><span class="badge complete" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>7/7</span></div>
+          </div>
+        </div>
+
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">In Delivery</div>
+            <div class="kanban-count">1</div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">SolarNow UK</div>
+            <div class="kc-offer">Solar installs · Homeowners 40–65</div>
+            <div class="kc-budget"><span>£5,000/mo budget</span><span class="badge complete" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>Live</span></div>
+          </div>
+        </div>
+
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">Launched</div>
+            <div class="kanban-count">0</div>
+          </div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--muted);padding:10px 0">
+            No clients launched yet
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════
+         PAGE: GHL Status
+    ════════════════════════════════════════════ -->
+    <div class="page" id="page-ghl">
+      <div class="page-header">
+        <div>
+          <div class="page-title">GHL Status</div>
+          <div class="page-sub">Mock GHL payload status per client — ready for live API connection</div>
+        </div>
+        <span class="badge pending" style="font-size:12px;padding:5px 12px"><span class="badge-dot"></span>Mock mode — API key not set</span>
+      </div>
+
+      <div class="ghl-grid" id="ghl-grid">
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">Apex Legal</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge complete"><span class="badge-dot"></span>Payload ready</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val mock">MOCK</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val">Strategy Approved</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val">Onboarding Seq.</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val">4 pages · draft</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val">AI-Generated</span></div>
+          </div>
+        </div>
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">SolarNow UK</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge complete"><span class="badge-dot"></span>Payload ready</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val mock">MOCK</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val">Strategy Approved</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val">Onboarding Seq.</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val">4 pages · draft</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val">AI-Generated</span></div>
+          </div>
+        </div>
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">PureKeto Foods</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge complete"><span class="badge-dot"></span>Payload ready</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val mock">MOCK</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val">Strategy Approved</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val">Onboarding Seq.</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val">4 pages · draft</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val">AI-Generated</span></div>
+          </div>
+        </div>
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">FitLife Coaching</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge running"><span class="badge-dot"></span>Generating…</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val mock">Pending</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+          </div>
+        </div>
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">MindSet Academy</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge error"><span class="badge-dot"></span>Incomplete</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val mock">MOCK (partial)</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val" style="color:var(--muted)">Run failed</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+          </div>
+        </div>
+
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">Clarity Therapy</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            <span class="badge pending"><span class="badge-dot"></span>Not run</span>
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val" style="color:var(--muted)">—</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── Clock ──────────────────────────────────────────────────────
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ── Navigation ─────────────────────────────────────────────────
+  function navigate(pageId, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.add('active');
+    if (el) el.classList.add('active');
+  }
+
+  // ── Client search ──────────────────────────────────────────────
+  function filterClients(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('#client-table tbody tr').forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q) ? '' : 'none';
+    });
+  }
+
+  // ── Status badge helper ────────────────────────────────────────
+  function statusBadge(status) {
+    const map = {
+      complete: `<span class="badge complete"><span class="badge-dot"></span>Complete</span>`,
+      running:  `<span class="badge running"><span class="badge-dot"></span>Running</span>`,
+      error:    `<span class="badge error"><span class="badge-dot"></span>Error</span>`,
+      pending:  `<span class="badge pending"><span class="badge-dot"></span>Pending</span>`,
+    };
+    return map[status] || map['pending'];
+  }
+
+  // ── Agent chip helper ──────────────────────────────────────────
+  const AGENT_KEYS = ['strategy','copy','media_plan','funnel','automations','creatives','project_plan'];
+  const AGENT_LABELS = ['Strategy','Copy','Media Plan','Funnel','Automations','Creatives','PM Plan'];
+
+  function agentChips(outputs) {
+    return AGENT_KEYS.map((k, i) => {
+      const done = outputs && outputs[k] && outputs[k].length > 10;
+      return `<span class="agent-chip ${done ? 'done' : ''}">${AGENT_LABELS[i]}</span>`;
+    }).join('');
+  }
+
+  function countDone(outputs) {
+    if (!outputs) return 0;
+    return AGENT_KEYS.filter(k => outputs[k] && outputs[k].length > 10).length;
+  }
+
+  // ── Load live clients from API ─────────────────────────────────
+  async function loadClients() {
+    try {
+      const clients = await fetch('/dashboard/clients').then(r => r.json());
+
+      // ── Clients page table ─────────────────────────────────────
+      const tbody = document.querySelector('#client-table tbody');
+      if (tbody && clients.length > 0) {
+        tbody.innerHTML = '';
+        clients.forEach(c => {
+          const status = c.status || 'complete';
+          tbody.innerHTML += `
+            <tr>
+              <td>
+                <div class="client-name">${c.business_name}</div>
+                <div class="client-offer">${c.offer || '—'}</div>
+              </td>
+              <td style="font-size:12px;color:var(--muted2)">${c.audience || '—'}</td>
+              <td style="font-family:var(--mono);font-size:12px">${c.budget || '—'}</td>
+              <td style="font-size:12px;color:var(--muted2)">${c.goals || '—'}</td>
+              <td>${statusBadge(status)}</td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${(c.created_at || '').slice(0,10) || '—'}</td>
+            </tr>`;
+        });
+      }
+
+      // ── Sidebar badge count ────────────────────────────────────
+      const badge = document.querySelector('.nav-badge');
+      if (badge) badge.textContent = clients.length;
+
+      // ── Overview recent runs table ─────────────────────────────
+      const runsTbody = document.querySelector('#recent-runs-table tbody');
+      if (runsTbody && clients.length > 0) {
+        runsTbody.innerHTML = '';
+        clients.slice(0, 6).forEach(c => {
+          const status   = c.status || 'complete';
+          const done     = c.agents_done ?? 7;
+          const total    = 7;
+          const runtime  = c.run_time || '—';
+          const dateStr  = c.created_at ? relativeDate(c.created_at) : '—';
+          runsTbody.innerHTML += `
+            <tr>
+              <td>
+                <div class="client-name">${c.business_name}</div>
+                <div class="client-offer">${c.offer || '—'}</div>
+              </td>
+              <td>${statusBadge(done === total ? 'complete' : status === 'error' ? 'error' : 'running')}</td>
+              <td>${statusBadge(status)}</td>
+              <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${runtime}</td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${dateStr}</td>
+            </tr>`;
+        });
+      }
+
+      // ── Output tracker page ────────────────────────────────────
+      const outputList = document.querySelector('#output-list');
+      if (outputList && clients.length > 0) {
+        outputList.innerHTML = '';
+        clients.forEach(c => {
+          const outputs  = c.outputs || {};
+          const done     = countDone(outputs);
+          const status   = done === 7 ? 'complete' : c.status === 'error' ? 'error' : done === 0 ? 'pending' : 'running';
+          const dateStr  = c.created_at ? relativeDate(c.created_at) : 'Not run';
+          const runInfo  = c.run_time ? `Completed ${dateStr} · ${c.run_time}` : `Last updated ${dateStr}`;
+          outputList.innerHTML += `
+            <div class="output-row">
+              <div>
+                <div class="or-client">${c.business_name}</div>
+                <div class="or-date">${runInfo}</div>
+              </div>
+              <div class="agent-checklist">${agentChips(outputs)}</div>
+              ${statusBadge(status).replace('badge', 'badge').replace('</span>', ` &nbsp;${done} / 7</span>`)}
+            </div>`;
+        });
+      }
+
+      // ── Pipeline kanban ────────────────────────────────────────
+      buildKanban(clients);
+
+      // ── GHL status grid ────────────────────────────────────────
+      buildGHLGrid(clients);
+
+    } catch (err) {
+      console.warn('API not connected — showing static demo data.', err);
+      // Falls back silently to hardcoded HTML already in the page
+    }
+  }
+
+  // ── Load metrics from API ──────────────────────────────────────
+  async function loadMetrics() {
+    try {
+      const m = await fetch('/dashboard/metrics').then(r => r.json());
+
+      const cards = document.querySelectorAll('.metrics-grid .metric-card');
+      if (cards.length >= 4) {
+        cards[0].querySelector('.metric-value').textContent = m.total_clients  ?? '—';
+        cards[0].querySelector('.metric-delta').textContent = `↑ ${m.new_this_week ?? 0} this week`;
+
+        cards[1].querySelector('.metric-value').textContent = m.runs_complete  ?? '—';
+        cards[1].querySelector('.metric-delta').textContent = `${m.total_agent_runs ?? 0} agent runs total`;
+
+        cards[2].querySelector('.metric-value').textContent = m.in_progress    ?? '0';
+        cards[2].querySelector('.metric-delta').textContent = m.in_progress_name ?? 'None running';
+
+        cards[3].querySelector('.metric-value').textContent = m.avg_run_time   ?? '—';
+        cards[3].querySelector('.metric-delta').textContent = '7 agents / run';
+      }
+
+      // ── Agents page metrics ────────────────────────────────────
+      const agentCards = document.querySelectorAll('#page-agents .metrics-grid .metric-card');
+      if (agentCards.length >= 4) {
+        agentCards[0].querySelector('.metric-value').textContent = m.total_agent_runs ?? '—';
+        agentCards[1].querySelector('.metric-value').textContent = (m.success_rate ?? '95') + '%';
+        agentCards[3].querySelector('.metric-value').textContent = '$' + (m.estimated_cost ?? '0');
+      }
+
+    } catch (err) {
+      console.warn('Metrics API not connected — showing static data.', err);
+    }
+  }
+
+  // ── Build pipeline kanban from live data ───────────────────────
+  function buildKanban(clients) {
+    const stages = {
+      pending:   { label: 'Brief Submitted', clients: [] },
+      running:   { label: 'AI Running',      clients: [] },
+      complete:  { label: 'Outputs Ready',   clients: [] },
+      delivery:  { label: 'In Delivery',     clients: [] },
+      launched:  { label: 'Launched',        clients: [] },
+    };
+
+    clients.forEach(c => {
+      const s = c.pipeline_stage || (c.status === 'complete' ? 'complete' : c.status || 'pending');
+      if (stages[s]) stages[s].clients.push(c);
+      else stages['pending'].clients.push(c);
+    });
+
+    const kanban = document.querySelector('#kanban-board');
+    if (!kanban) return;
+    kanban.innerHTML = '';
+
+    Object.entries(stages).forEach(([key, stage]) => {
+      const cards = stage.clients.map(c => `
+        <div class="kanban-card">
+          <div class="kc-name">${c.business_name}</div>
+          <div class="kc-offer">${(c.offer || '').slice(0, 60)}${(c.offer || '').length > 60 ? '…' : ''}</div>
+          <div class="kc-budget">
+            <span>${c.budget || '—'}</span>
+            ${statusBadge(c.status || 'pending')}
+          </div>
+        </div>`).join('');
+
+      kanban.innerHTML += `
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">${stage.label}</div>
+            <div class="kanban-count">${stage.clients.length}</div>
+          </div>
+          ${cards || `<div style="font-size:11px;font-family:var(--mono);color:var(--muted);padding:10px 0">No clients here</div>`}
+        </div>`;
+    });
+  }
+
+  // ── Build GHL grid from live data ──────────────────────────────
+  function buildGHLGrid(clients) {
+    const grid = document.querySelector('#ghl-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    clients.forEach(c => {
+      const status   = c.status || 'pending';
+      const hasMock  = status === 'complete' || status === 'delivery';
+      const badgeHtml = hasMock
+        ? `<span class="badge complete"><span class="badge-dot"></span>Payload ready</span>`
+        : status === 'running'
+          ? `<span class="badge running"><span class="badge-dot"></span>Generating…</span>`
+          : status === 'error'
+            ? `<span class="badge error"><span class="badge-dot"></span>Incomplete</span>`
+            : `<span class="badge pending"><span class="badge-dot"></span>Not run</span>`;
+
+      const dash = `<span style="color:var(--muted)">—</span>`;
+      const mock = `<span class="ghl-field-val mock">MOCK</span>`;
+
+      grid.innerHTML += `
+        <div class="ghl-card">
+          <div class="ghl-top">
+            <div>
+              <div class="ghl-name">${c.business_name}</div>
+              <div class="ghl-section">Contact · Pipeline · Automation</div>
+            </div>
+            ${badgeHtml}
+          </div>
+          <div class="ghl-fields">
+            <div class="ghl-field"><span class="ghl-field-key">Contact</span>${hasMock ? mock : dash}</div>
+            <div class="ghl-field"><span class="ghl-field-key">Pipeline stage</span><span class="ghl-field-val">${hasMock ? 'Strategy Approved' : '—'}</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Workflow</span><span class="ghl-field-val">${hasMock ? 'Onboarding Seq.' : '—'}</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Funnel pages</span><span class="ghl-field-val">${hasMock ? '4 pages · draft' : '—'}</span></div>
+            <div class="ghl-field"><span class="ghl-field-key">Tags</span><span class="ghl-field-val">${hasMock ? 'AI-Generated' : '—'}</span></div>
+          </div>
+        </div>`;
+    });
+  }
+
+  // ── Activity feed from API ─────────────────────────────────────
+  async function loadActivity() {
+    try {
+      const logs = await fetch('/dashboard/activity').then(r => r.json());
+      const feed = document.querySelector('#activity-feed');
+      if (!feed || !logs.length) return;
+
+      feed.innerHTML = '';
+      logs.forEach(log => {
+        const iconMap = { complete: 'ai-green', running: 'ai-purple', error: 'ai-red', pending: 'ai-amber' };
+        const iconClass = iconMap[log.type] || 'ai-purple';
+        const symbol = log.type === 'complete' ? '✓' : log.type === 'error' ? '!' : '◎';
+        feed.innerHTML += `
+          <div class="activity-item">
+            <div class="activity-icon ${iconClass}">${symbol}</div>
+            <div class="activity-body">
+              <div class="activity-text">${log.message}</div>
+              <div class="activity-time">${relativeDate(log.timestamp)}</div>
+            </div>
+          </div>`;
+      });
+    } catch (err) {
+      console.warn('Activity API not connected — showing static feed.', err);
+    }
+  }
+
+  // ── Relative date helper ───────────────────────────────────────
+  function relativeDate(iso) {
+    if (!iso) return '—';
+    const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (diff < 60)   return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff/60)} min ago`;
+    if (diff < 86400)return `${Math.floor(diff/3600)} hr ago`;
+    const days = Math.floor(diff/86400);
+    if (days === 1)  return 'Yesterday';
+    if (days < 7)    return `${days} days ago`;
+    return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+  }
+
+  // ── Auto-refresh every 30s when a run is in progress ──────────
+  function startAutoRefresh() {
+    setInterval(async () => {
+      try {
+        const m = await fetch('/dashboard/metrics').then(r => r.json());
+        if (m.in_progress > 0) {
+          loadClients();
+          loadMetrics();
+          loadActivity();
+        }
+      } catch (_) {}
+    }, 30000);
+  }
+
+  // ── Run on page load ───────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    loadClients();
+    loadMetrics();
+    loadActivity();
+    startAutoRefresh();
+  });
+</script>
+
+</body>
+</html>
