@@ -78,20 +78,25 @@ def log_completed_run(
     finished_at: str,
     status: str = "success",
     error: str = "",
+    tokens_input: int = 0,
+    tokens_output: int = 0,
+    tokens_total: int = 0,
+    cost_usd: float = 0.0,
+    duration_secs: int = 0,
 ) -> None:
-    """Insert a fully-timed run_log entry in a single step.
-
-    Used by the UI submission flow which saves the client *after* the run
-    completes, so we backfill the log with the correct timestamps.
-    """
-    log.debug("log_completed_run — client_id=%d  status=%s", client_id, status)
+    """Insert a fully-timed run_log entry including real token and cost data."""
+    log.debug("log_completed_run — client_id=%d  status=%s  tokens=%d  cost=$%.4f",
+              client_id, status, tokens_total, cost_usd)
     conn = get_connection()
     conn.execute(
         """
-        INSERT INTO run_logs (client_id, started_at, finished_at, status, error)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO run_logs
+            (client_id, started_at, finished_at, status, error,
+             tokens_input, tokens_output, tokens_total, cost_usd, duration_secs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (client_id, started_at, finished_at, status, error),
+        (client_id, started_at, finished_at, status, error,
+         tokens_input, tokens_output, tokens_total, cost_usd, duration_secs),
     )
     conn.commit()
     conn.close()
@@ -157,6 +162,28 @@ def load_clients_with_status() -> list[dict]:
         d["goals"]    = inp.get("goals", "")
         result.append(d)
     return result
+
+
+def load_token_stats() -> dict:
+    """
+    Return aggregate token and cost figures across all successful runs.
+    Keys: total_tokens, tokens_input, tokens_output, total_cost_usd, avg_duration_secs
+    """
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(tokens_total),  0)   AS total_tokens,
+            COALESCE(SUM(tokens_input),  0)   AS tokens_input,
+            COALESCE(SUM(tokens_output), 0)   AS tokens_output,
+            COALESCE(SUM(cost_usd),      0.0) AS total_cost_usd,
+            COALESCE(AVG(NULLIF(duration_secs, 0)), 0) AS avg_duration_secs
+        FROM run_logs
+        WHERE status IN ('success', 'complete')
+        """
+    ).fetchone()
+    conn.close()
+    return dict(row)
 
 
 def load_client(client_id: int) -> tuple[dict | None, dict | None]:

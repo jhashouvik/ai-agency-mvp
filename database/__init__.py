@@ -6,6 +6,7 @@ from .repository import (
     load_client,
     load_clients_with_status,
     log_completed_run,
+    load_token_stats,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "load_client",
     "load_clients_with_status",
     "log_completed_run",
+    "load_token_stats",
 ]

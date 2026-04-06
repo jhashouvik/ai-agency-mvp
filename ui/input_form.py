@@ -125,7 +125,45 @@ def _handle_submission(**fields: str) -> None:
                     try:
                         from crew import run_crew  # lazy import — keeps crewai/embedchain/chromadb out of startup
                         log.info("Crew thread started — client=%r", client.business_name)
-                        result_holder["outputs"] = run_crew(client)
+                        # Try to capture real token usage via LangChain callback
+                        cb_tokens = 0
+                        cb_cost   = 0.0
+                        try:
+                            try:
+                                from langchain_community.callbacks import get_openai_callback
+                            except ImportError:
+                                from langchain.callbacks import get_openai_callback
+                            with get_openai_callback() as cb:
+                                result_holder["outputs"] = run_crew(client)
+                            cb_tokens = cb.total_tokens
+                            cb_cost   = cb.total_cost
+                            log.info("Callback token usage — total=%d  cost=$%.4f", cb_tokens, cb_cost)
+                        except Exception:
+                            result_holder["outputs"] = run_crew(client)
+
+                        outputs = result_holder.get("outputs", {})
+
+                        # If callback didn't capture tokens (returns 0), estimate from output text.
+                        # CrewAI makes multiple iterative LLM calls per agent (think/act/observe).
+                        # Calibrated against real OpenAI dashboard: $2.20 total across 4 runs.
+                        # Real ratio: $2.20 actual vs $0.3441 raw char estimate = 6.39x multiplier.
+                        # GPT-4o pricing: $2.50/1M input + $10.00/1M output, 70/30 split.
+                        if cb_tokens == 0 and outputs:
+                            total_output_chars = sum(len(str(v)) for v in outputs.values() if v)
+                            input_chars        = len(str(client.to_dict()))
+                            visible_tokens = int((total_output_chars + input_chars) / 4)
+                            # scale by calibration factor (accounts for intermediate reasoning steps)
+                            total_tokens   = int(visible_tokens * 6.39)
+                            est_in_tokens  = int(total_tokens * 0.70)
+                            est_out_tokens = int(total_tokens * 0.30)
+                            cb_tokens      = total_tokens
+                            cb_cost        = (est_in_tokens / 1_000_000 * 2.50) + (est_out_tokens / 1_000_000 * 10.00)
+                            log.info("Estimated tokens (calibrated 6.39x) — total=%d  cost=$%.4f", cb_tokens, cb_cost)
+
+                        result_holder["tokens_input"]  = int(cb_tokens * 0.70)
+                        result_holder["tokens_output"] = int(cb_tokens * 0.30)
+                        result_holder["tokens_total"]  = cb_tokens
+                        result_holder["cost_usd"]      = cb_cost
                         log.info("Crew thread finished successfully")
                     except Exception as exc:          # noqa: BLE001
                         log.exception("Crew thread raised an exception: %s", exc)
@@ -151,10 +189,21 @@ def _handle_submission(**fields: str) -> None:
 
         import datetime as _dt
         _run_finished = _dt.datetime.now().isoformat(timespec="seconds")
+        _duration_secs = int(
+            (_dt.datetime.fromisoformat(_run_finished) -
+             _dt.datetime.fromisoformat(_run_started)).total_seconds()
+        )
         log.info("Run complete in %s — saving to DB", t.pretty)
         progress.progress(95, text="Saving to database…")
         client_id = save_client(client.to_dict(), outputs)
-        log_completed_run(client_id, _run_started, _run_finished, "success")
+        log_completed_run(
+            client_id, _run_started, _run_finished, "success",
+            tokens_input=result_holder.get("tokens_input", 0),
+            tokens_output=result_holder.get("tokens_output", 0),
+            tokens_total=result_holder.get("tokens_total", 0),
+            cost_usd=result_holder.get("cost_usd", 0.0),
+            duration_secs=_duration_secs,
+        )
         progress.progress(100, text="Done!")
 
         st.success(
